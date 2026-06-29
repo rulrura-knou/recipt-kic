@@ -54,6 +54,6 @@ class Expense(BaseModel):
     items: list[ReceiptItem] = []
     category: str = ""
     raw_ie_response: str = ""
-    image_path: str = ""
+    image_url: str = ""
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)

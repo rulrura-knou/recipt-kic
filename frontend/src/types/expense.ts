@@ -12,7 +12,7 @@ export interface Expense {
   items: ReceiptItem[]
   category: string
   raw_ie_response: string
-  image_path: string
+  image_url: string
   created_at: string
   updated_at: string
 }

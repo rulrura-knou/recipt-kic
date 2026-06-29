@@ -14,10 +14,22 @@ CREATE TABLE IF NOT EXISTS expenses (
     items            JSONB       NOT NULL DEFAULT '[]',
     category         TEXT        NOT NULL DEFAULT '',
     raw_ie_response  TEXT        NOT NULL DEFAULT '',
-    image_path       TEXT        NOT NULL DEFAULT '',
+    image_url        TEXT        NOT NULL DEFAULT '',
     created_at       TIMESTAMPTZ NOT NULL,
     updated_at       TIMESTAMPTZ NOT NULL
 );
+"""
+
+MIGRATE_COLUMN_SQL = """
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'expenses' AND column_name = 'image_path'
+    ) THEN
+        ALTER TABLE expenses RENAME COLUMN image_path TO image_url;
+    END IF;
+END $$;
 """
 
 
@@ -30,6 +42,7 @@ def init_db() -> None:
     with _conn() as conn:
         with conn.cursor() as cur:
             cur.execute(CREATE_TABLE_SQL)
+            cur.execute(MIGRATE_COLUMN_SQL)
 
 
 def _row_to_expense(row: dict) -> Expense:
@@ -87,7 +100,7 @@ def create(expense: Expense) -> Expense:
                 """
                 INSERT INTO expenses
                     (id, date, store_name, total_amount, items, category,
-                     raw_ie_response, image_path, created_at, updated_at)
+                     raw_ie_response, image_url, created_at, updated_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
@@ -98,7 +111,7 @@ def create(expense: Expense) -> Expense:
                     json.dumps(data["items"], default=str, ensure_ascii=False),
                     data["category"],
                     data["raw_ie_response"],
-                    data["image_path"],
+                    data["image_url"],
                     data["created_at"],
                     data["updated_at"],
                 ),
@@ -115,7 +128,7 @@ def update(expense_id: str, updated: Expense) -> Expense | None:
                 UPDATE expenses SET
                     date = %s, store_name = %s, total_amount = %s,
                     items = %s, category = %s, raw_ie_response = %s,
-                    image_path = %s, updated_at = %s
+                    image_url = %s, updated_at = %s
                 WHERE id = %s
                 """,
                 (
@@ -125,7 +138,7 @@ def update(expense_id: str, updated: Expense) -> Expense | None:
                     json.dumps(data["items"], default=str, ensure_ascii=False),
                     data["category"],
                     data["raw_ie_response"],
-                    data["image_path"],
+                    data["image_url"],
                     data["updated_at"],
                     expense_id,
                 ),

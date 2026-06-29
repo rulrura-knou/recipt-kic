@@ -88,7 +88,7 @@ def _parse_ie_response(ie_result: dict) -> dict:
     return json.loads(raw_content)
 
 
-async def ie_to_expense(image_bytes: bytes, content_type: str, image_path: str) -> Expense:
+async def ie_to_expense(image_bytes: bytes, content_type: str, image_url: str) -> Expense:
     ie_result = await call_ie_api(image_bytes, content_type)
     raw_content = ie_result["choices"][0]["message"]["content"]
     fields = json.loads(raw_content)
@@ -107,5 +107,5 @@ async def ie_to_expense(image_bytes: bytes, content_type: str, image_path: str) 
         items=[ReceiptItem(name=i["name"], price=int(i["price"])) for i in fields.get("items", [])],
         category=fields.get("category", "기타"),
         raw_ie_response=raw_content,
-        image_path=image_path,
+        image_url=image_url,
     )

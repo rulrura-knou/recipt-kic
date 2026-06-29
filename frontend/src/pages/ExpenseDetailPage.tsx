@@ -218,8 +218,8 @@ export default function ExpenseDetailPage() {
         ) : (
           /* ── 상세 보기 ── */
           <>
-            {expense.image_path && (
-              <ReceiptImage path={expense.image_path} alt={expense.store_name} />
+            {expense.image_url && (
+              <ReceiptImage url={expense.image_url} alt={expense.store_name} />
             )}
             <div>
               <p className="text-2xl font-bold text-slate-900">{expense.store_name}</p>
@@ -272,15 +272,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-function ReceiptImage({ path, alt }: { path: string; alt: string }) {
-  // "uploads\file.png" 또는 "uploads/file.png" → "/api/uploads/file.png"
-  const filename = path.replace(/\\/g, '/').split('/').pop()
-  const src = `/api/uploads/${filename}`
-
+function ReceiptImage({ url, alt }: { url: string; alt: string }) {
   return (
     <div className="-mx-6 -mt-6 mb-2 rounded-t-2xl overflow-hidden bg-slate-100">
       <img
-        src={src}
+        src={url}
         alt={alt}
         className="w-full max-h-72 object-contain"
         onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
