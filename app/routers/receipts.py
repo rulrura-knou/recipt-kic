@@ -17,6 +17,7 @@ async def _upload_to_blob(image_bytes: bytes, filename: str, content_type: str) 
         "Authorization": f"Bearer {settings.blob_read_write_token}",
         "Content-Type": content_type,
         "x-api-version": "7",
+        "x-access": "public",
     }
     async with httpx.AsyncClient(timeout=30) as client:
         res = await client.put(
