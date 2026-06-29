@@ -4,14 +4,23 @@ import os
 # app/ 패키지를 찾을 수 있도록 프로젝트 루트를 경로에 추가
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import expenses, receipts
+from app.services.storage import init_db
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    init_db()
+    yield
 
 app = FastAPI(
     title="영수증 지출관리 API",
     description="영수증 OCR 기반 지출 관리 서비스",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(

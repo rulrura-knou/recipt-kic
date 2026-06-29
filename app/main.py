@@ -1,13 +1,22 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.routers import expenses, receipts
 from app.config import settings
+from app.services.storage import init_db
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    init_db()
+    yield
 
 app = FastAPI(
     title="영수증 지출관리 API",
     description="영수증 OCR 기반 지출 관리 서비스",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(

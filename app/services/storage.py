@@ -1,31 +1,47 @@
 import json
-from pathlib import Path
+import psycopg2
+import psycopg2.extras
 from datetime import date, datetime
 from app.config import settings
 from app.models.expense import Expense
 
+CREATE_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS expenses (
+    id               TEXT        PRIMARY KEY,
+    date             DATE        NOT NULL,
+    store_name       TEXT        NOT NULL,
+    total_amount     INTEGER     NOT NULL,
+    items            JSONB       NOT NULL DEFAULT '[]',
+    category         TEXT        NOT NULL DEFAULT '',
+    raw_ie_response  TEXT        NOT NULL DEFAULT '',
+    image_path       TEXT        NOT NULL DEFAULT '',
+    created_at       TIMESTAMPTZ NOT NULL,
+    updated_at       TIMESTAMPTZ NOT NULL
+);
+"""
 
-def _load() -> list[dict]:
-    path = Path(settings.data_file_path)
-    if not path.exists():
-        return []
-    return json.loads(path.read_text(encoding="utf-8"))
+
+def _conn():
+    conn = psycopg2.connect(settings.database_url)
+    return conn
 
 
-def _save(expenses: list[dict]) -> None:
-    path = Path(settings.data_file_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(expenses, ensure_ascii=False, indent=2, default=_json_default), encoding="utf-8")
+def init_db() -> None:
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(CREATE_TABLE_SQL)
 
 
-def _json_default(obj):
-    if isinstance(obj, (date, datetime)):
-        return obj.isoformat()
-    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+def _row_to_expense(row: dict) -> Expense:
+    row["items"] = row["items"] if isinstance(row["items"], list) else json.loads(row["items"])
+    return Expense(**row)
 
 
 def get_all() -> list[Expense]:
-    return [Expense(**e) for e in _load()]
+    with _conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT * FROM expenses ORDER BY date DESC, created_at DESC")
+            return [_row_to_expense(dict(r)) for r in cur.fetchall()]
 
 
 def get_filtered(
@@ -33,46 +49,92 @@ def get_filtered(
     to_date: date | None = None,
     category: str | None = None,
 ) -> list[Expense]:
-    expenses = [Expense(**e) for e in _load()]
+    conditions = []
+    params: list = []
 
     if from_date:
-        expenses = [e for e in expenses if e.date >= from_date]
+        conditions.append("date >= %s")
+        params.append(from_date)
     if to_date:
-        expenses = [e for e in expenses if e.date <= to_date]
+        conditions.append("date <= %s")
+        params.append(to_date)
     if category:
-        expenses = [e for e in expenses if e.category == category]
+        conditions.append("category = %s")
+        params.append(category)
 
-    return sorted(expenses, key=lambda e: e.date, reverse=True)
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+    sql = f"SELECT * FROM expenses {where} ORDER BY date DESC, created_at DESC"
+
+    with _conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, params)
+            return [_row_to_expense(dict(r)) for r in cur.fetchall()]
 
 
 def get_by_id(expense_id: str) -> Expense | None:
-    for e in _load():
-        if e["id"] == expense_id:
-            return Expense(**e)
-    return None
+    with _conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT * FROM expenses WHERE id = %s", (expense_id,))
+            row = cur.fetchone()
+            return _row_to_expense(dict(row)) if row else None
 
 
 def create(expense: Expense) -> Expense:
-    expenses = _load()
-    expenses.append(expense.model_dump())
-    _save(expenses)
+    data = expense.model_dump()
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO expenses
+                    (id, date, store_name, total_amount, items, category,
+                     raw_ie_response, image_path, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    data["id"],
+                    data["date"],
+                    data["store_name"],
+                    data["total_amount"],
+                    json.dumps(data["items"], default=str, ensure_ascii=False),
+                    data["category"],
+                    data["raw_ie_response"],
+                    data["image_path"],
+                    data["created_at"],
+                    data["updated_at"],
+                ),
+            )
     return expense
 
 
 def update(expense_id: str, updated: Expense) -> Expense | None:
-    expenses = _load()
-    for i, e in enumerate(expenses):
-        if e["id"] == expense_id:
-            expenses[i] = updated.model_dump()
-            _save(expenses)
-            return updated
-    return None
+    data = updated.model_dump()
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE expenses SET
+                    date = %s, store_name = %s, total_amount = %s,
+                    items = %s, category = %s, raw_ie_response = %s,
+                    image_path = %s, updated_at = %s
+                WHERE id = %s
+                """,
+                (
+                    data["date"],
+                    data["store_name"],
+                    data["total_amount"],
+                    json.dumps(data["items"], default=str, ensure_ascii=False),
+                    data["category"],
+                    data["raw_ie_response"],
+                    data["image_path"],
+                    data["updated_at"],
+                    expense_id,
+                ),
+            )
+            return updated if cur.rowcount > 0 else None
 
 
 def delete(expense_id: str) -> bool:
-    expenses = _load()
-    filtered = [e for e in expenses if e["id"] != expense_id]
-    if len(filtered) == len(expenses):
-        return False
-    _save(filtered)
-    return True
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM expenses WHERE id = %s", (expense_id,))
+            return cur.rowcount > 0
