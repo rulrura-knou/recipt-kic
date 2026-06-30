@@ -25,7 +25,11 @@ async def _upload_to_blob(image_bytes: bytes, filename: str, content_type: str) 
             content=image_bytes,
             headers=headers,
         )
-        res.raise_for_status()
+        if not res.is_success:
+            raise HTTPException(
+                status_code=502,
+                detail={"code": "BLOB_UPLOAD_FAILED", "message": f"Blob 업로드 실패 ({res.status_code}): {res.text}"},
+            )
     return res.json()["url"]
 
 
