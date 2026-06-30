@@ -1,7 +1,11 @@
 from collections import defaultdict
 from datetime import date, datetime
+from pathlib import Path
 from typing import Optional
+import httpx
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import Response
+from app.config import settings
 from app.models.expense import (
     CategorySummary, Expense, ExpenseCreate, ExpenseUpdate, ExpenseSummary, ThisMonth,
 )
@@ -54,6 +58,33 @@ def list_expenses(
             detail={"code": "INVALID_DATE_RANGE", "message": "from_date가 to_date보다 늦을 수 없습니다."},
         )
     return storage.get_filtered(from_date=from_date, to_date=to_date, category=category)
+
+
+@router.get("/{expense_id}/image")
+async def get_expense_image(expense_id: str):
+    expense = storage.get_by_id(expense_id)
+    if not expense or not expense.image_url:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "이미지를 찾을 수 없습니다."})
+
+    image_url = expense.image_url
+
+    if image_url.startswith("http"):
+        # Vercel Blob private — 토큰 인증 후 프록시
+        async with httpx.AsyncClient(timeout=30) as client:
+            res = await client.get(
+                image_url,
+                headers={"Authorization": f"Bearer {settings.blob_read_write_token}", "x-api-version": "7"},
+            )
+            if not res.is_success:
+                raise HTTPException(status_code=404, detail={"code": "IMAGE_NOT_FOUND", "message": "이미지를 불러올 수 없습니다."})
+        return Response(content=res.content, media_type=res.headers.get("content-type", "image/jpeg"))
+    else:
+        # 로컬 개발 — 파일시스템에서 직접 읽기
+        filename = image_url.split("/")[-1]
+        file_path = Path(settings.upload_dir) / filename
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail={"code": "IMAGE_NOT_FOUND", "message": "이미지를 찾을 수 없습니다."})
+        return Response(content=file_path.read_bytes(), media_type="image/jpeg")
 
 
 @router.get("/{expense_id}", response_model=Expense)

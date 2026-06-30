@@ -219,7 +219,7 @@ export default function ExpenseDetailPage() {
           /* ── 상세 보기 ── */
           <>
             {expense.image_url && (
-              <ReceiptImage url={expense.image_url} alt={expense.store_name} />
+              <ReceiptImage url={`/api/expenses/${expense.id}/image`} alt={expense.store_name} />
             )}
             <div>
               <p className="text-2xl font-bold text-slate-900">{expense.store_name}</p>

@@ -17,7 +17,7 @@ async def _upload_to_blob(image_bytes: bytes, filename: str, content_type: str) 
         "Authorization": f"Bearer {settings.blob_read_write_token}",
         "Content-Type": content_type,
         "x-api-version": "7",
-        "x-access": "public",
+        "x-access": "private",
     }
     async with httpx.AsyncClient(timeout=30) as client:
         res = await client.put(
@@ -25,14 +25,7 @@ async def _upload_to_blob(image_bytes: bytes, filename: str, content_type: str) 
             content=image_bytes,
             headers=headers,
         )
-        if not res.is_success:
-            raise HTTPException(
-                status_code=502,
-                detail={
-                    "code": "BLOB_UPLOAD_FAILED",
-                    "message": f"Blob 업로드 실패 ({res.status_code}): {res.text}",
-                },
-            )
+        res.raise_for_status()
     return res.json()["url"]
 
 
