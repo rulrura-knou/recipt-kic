@@ -6,8 +6,20 @@ async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     const detail = err.detail
-    const message = typeof detail === 'object' ? detail?.message : detail
-    throw new Error(message ?? `오류 ${res.status}`)
+    let message: string
+    if (Array.isArray(detail)) {
+      // Pydantic v2 validation errors: [{loc, msg, type, input}]
+      message = detail
+        .map((e: { loc?: (string | number)[]; msg?: string }) =>
+          `${(e.loc ?? []).slice(1).join('.')} : ${e.msg ?? ''}`.trim()
+        )
+        .join(' / ')
+    } else if (detail && typeof detail === 'object') {
+      message = (detail as { message?: string }).message ?? `오류 ${res.status}`
+    } else {
+      message = (detail as string) ?? `오류 ${res.status}`
+    }
+    throw new Error(message || `오류 ${res.status}`)
   }
   if (res.status === 204) return undefined as T
   return res.json()
@@ -44,10 +56,14 @@ export async function getExpense(id: string): Promise<Expense> {
 }
 
 export async function updateExpense(id: string, data: ExpenseUpdate): Promise<Expense> {
+  const payload = {
+    ...data,
+    date: data.date || null,
+  }
   const res = await fetch(`${BASE}/expenses/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   })
   return handleResponse<Expense>(res)
 }

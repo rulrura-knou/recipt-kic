@@ -3,6 +3,7 @@ import { getSummary, listExpenses } from '../api/client'
 import type { Expense, ExpenseSummary } from '../types/expense'
 import SummaryCard from '../components/SummaryCard'
 import ExpenseCard from '../components/ExpenseCard'
+import CategoryDonut from '../components/CategoryDonut'
 
 export default function DashboardPage() {
   const [summary, setSummary] = useState<ExpenseSummary | null>(null)
@@ -62,27 +63,10 @@ export default function DashboardPage() {
           <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
             카테고리별 지출
           </h2>
-          <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-3">
-            {summary.by_category.map((cat) => {
-              const pct = summary.total_amount > 0
-                ? Math.round((cat.amount / summary.total_amount) * 100)
-                : 0
-              return (
-                <div key={cat.category}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-slate-700 font-medium">{cat.category}</span>
-                    <span className="text-slate-500">{cat.amount.toLocaleString('ko-KR')}원</span>
-                  </div>
-                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-indigo-500 rounded-full transition-all"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+          <CategoryDonut
+            categories={summary.by_category}
+            total={summary.total_amount}
+          />
         </section>
       )}
 
